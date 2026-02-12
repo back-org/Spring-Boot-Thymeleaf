@@ -8,15 +8,12 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-
 
 @SecurityScheme(
         name = "bearerAuth",
@@ -32,14 +29,11 @@ public class SimplerestApplication {
         SpringApplication.run(SimplerestApplication.class, args);
     }
 
-
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
-                // Add security requirement globally
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
                 .components(new Components()
-                        // Fully qualified name for SecurityScheme to avoid name conflict
                         .addSecuritySchemes("bearerAuth",
                                 new io.swagger.v3.oas.models.security.SecurityScheme()
                                         .name("bearerAuth")
@@ -49,25 +43,31 @@ public class SimplerestApplication {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    CommandLineRunner initAdmin(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    CommandLineRunner initAdmin(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            @Value("${app.admin.email:patdimby@outlook.fr}") String adminEmail,
+            @Value("${app.admin.username:patdimby}") String adminUsername,
+            @Value("${app.admin.firstname:Patrick}") String adminFirstName,
+            @Value("${app.admin.lastname:Dimbisoa}") String adminLastName,
+            @Value("${app.admin.password:Masterkey1}") String adminPassword
+    ) {
         return args -> {
-            if (userRepository.findByEmail("patdimby@outlook.fr").isEmpty()) {
-                User admin = new User();
-                admin.setUsername("patdimby");
-                admin.setEmail("patdimby@outlook.fr");
-                admin.setPassword(passwordEncoder.encode("Masterkey1"));
-                admin.setRole(UserRole.ROLE_ADMIN);
-                userRepository.save(admin);
-                System.out.println("✅ Created super user : patdimby@outlook.fr / Masterkey1");
-            } else {
-                System.out.println("✅ Super user already exist in database.");
+            if (userRepository.findByEmail(adminEmail).isPresent()) {
+                System.out.println("✅ Admin user already exists: " + adminEmail);
+                return;
             }
+
+            User admin = new User();
+            admin.setFirstName(adminFirstName);              // ✅ obligatoire
+            admin.setLastName(adminLastName);                // optionnel
+            admin.setUsername(adminUsername);
+            admin.setEmail(adminEmail);
+            admin.setPassword(passwordEncoder.encode(adminPassword));
+            admin.setRole(UserRole.ROLE_ADMIN);
+
+            userRepository.save(admin);
+            System.out.println("✅ Created admin user: " + adminEmail);
         };
     }
 }
-
