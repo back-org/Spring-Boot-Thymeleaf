@@ -3,35 +3,49 @@ package com.patdimby.simplerest.security;
 import com.patdimby.simplerest.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
 
-    private final Key secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    private final SecretKey secretKey;
+    private final long expirationMs;
+
+    public JwtService(
+            @Value("${security.jwt.secret}") String base64Secret,
+            @Value("${security.jwt.expiration-ms:86400000}") long expirationMs
+    ) {
+        // base64Secret doit être une clé Base64 solide (>= 256 bits pour HS256)
+        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(base64Secret));
+        this.expirationMs = expirationMs;
+    }
 
     public String generateToken(User user) {
-        // 24 heures
-        long expirationTime = 1000 * 60 * 60 * 24;
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + expirationMs);
+
         return Jwts.builder()
-                .setSubject(user.getEmail())
+                .subject(user.getEmail())
                 .claim("role", user.getRole().name())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
-                .signWith(secretKey)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(secretKey) // HS256 automatique selon la clé
                 .compact();
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        return username != null
+                && username.equals(userDetails.getUsername())
+                && !isTokenExpired(token);
     }
 
     public String extractUsername(String token) {
@@ -39,12 +53,13 @@ public class JwtService {
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
+        Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
     private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
+        Date exp = extractExpiration(token);
+        return exp.before(new Date());
     }
 
     private Date extractExpiration(String token) {
@@ -53,9 +68,9 @@ public class JwtService {
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .setSigningKey(secretKey)
+                .verifyWith(secretKey)        // ✅ jjwt 0.12.6
                 .build()
-                .parseSignedClaims(token)
+                .parseSignedClaims(token)     // ✅ parse token signé
                 .getPayload();
     }
 }

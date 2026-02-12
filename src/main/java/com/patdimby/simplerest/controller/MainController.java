@@ -4,6 +4,9 @@ import com.patdimby.simplerest.dto.UserDto;
 import com.patdimby.simplerest.model.*;
 import com.patdimby.simplerest.service.*;
 
+import lombok.AllArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.ui.Model;
@@ -14,7 +17,7 @@ import java.util.List;
 @RequestMapping("/blog")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
 @CrossOrigin
-@AllArgsConstructor
+//@AllArgsConstructor
 public class MainController {
    
     @Autowired
